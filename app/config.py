@@ -42,6 +42,9 @@ class Settings:
     # predicate-pushdown window so we never read the whole file.
     history_lookback_months: int = 24
 
+    # Rows per Parquet record batch. Caps peak memory during the streamed scan.
+    scan_batch_size: int = 65_536
+
     # --- Slack ---
     # Base-URL mode (mock/local) takes precedence over single-webhook mode.
     slack_webhook_base_url: Optional[str] = None
@@ -79,6 +82,7 @@ class Settings:
                 "DETAILS_BASE_URL", "https://app.yourcompany.com/accounts"
             ).rstrip("/"),
             history_lookback_months=int(os.getenv("HISTORY_LOOKBACK_MONTHS", "24")),
+            scan_batch_size=int(os.getenv("SCAN_BATCH_SIZE", "65536")),
             slack_webhook_base_url=(os.getenv("SLACK_WEBHOOK_BASE_URL") or None),
             slack_webhook_url=(os.getenv("SLACK_WEBHOOK_URL") or None),
             slack_auth_token=(os.getenv("MOCK_SLACK_AUTH_TOKEN") or None),

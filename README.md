@@ -15,7 +15,7 @@ for component + sequence diagrams):
 | Layer | Module | Responsibility |
 |-------|--------|----------------|
 | Storage | [`app/storage.py`](app/storage.py) | `open_uri()` — single interface for `file://`, `gs://`, `s3://` |
-| Data | [`app/data.py`](app/data.py) | Parquet load with **predicate pushdown**; row-level dedup by latest `updated_at` |
+| Data | [`app/data.py`](app/data.py) | Parquet load with **predicate pushdown** + **record-batch streaming**; row-level dedup by latest `updated_at` |
 | Business logic | [`app/duration.py`](app/duration.py) | Continuous At-Risk duration (gap resets the streak) |
 | Notification | [`app/slack.py`](app/slack.py) | Slack client: exponential backoff, 429/5xx retry, `Retry-After` |
 | Notification | [`app/notifications.py`](app/notifications.py) | Aggregated unknown-region email digest (stub) |
@@ -49,11 +49,15 @@ If there is no prior At-Risk month, duration = 1.
 
 ## Scale awareness
 
-The Parquet file may be large, so the service:
+The Parquet file may be large, so the service (`load_and_deduplicate` in
+[`app/data.py`](app/data.py)):
 - Pushes the `month` predicate to the Parquet reader via a **PyArrow dataset filtered
-  scan** (`load_month_window`), reading only the target month plus the
-  `HISTORY_LOOKBACK_MONTHS` window needed for duration — never the whole file.
+  scan**, reading only the target month plus the `HISTORY_LOOKBACK_MONTHS` window
+  needed for duration — never the whole file.
 - Projects only the columns it needs.
+- **Streams the result as record batches** (`SCAN_BATCH_SIZE` rows each) and
+  deduplicates incrementally, so peak memory is bounded by one batch plus the set of
+  unique `(account_id, month)` keys — not the file, nor even the full window.
 - Is runnable as a containerized batch job (see Dockerfile).
 
 ---
@@ -66,6 +70,7 @@ The Parquet file may be large, so the service:
 | `ARR_THRESHOLD` | `0` | Floor to suppress noise on small accounts. Default `0` = alert on all; raise per-customer to tune signal quality. |
 | `DETAILS_BASE_URL` | `https://app.yourcompany.com/accounts` | Account details link base. |
 | `HISTORY_LOOKBACK_MONTHS` | `24` | How far back to scan for duration. Caps the read window. |
+| `SCAN_BATCH_SIZE` | `65536` | Rows per Parquet record batch. Caps peak memory during the streamed scan. |
 | `SLACK_WEBHOOK_BASE_URL` | – | Base-URL mode: POST to `{base}/{channel}`. **Takes precedence** if both set. |
 | `SLACK_WEBHOOK_URL` | – | Single-webhook mode (real Slack). |
 | `RETRY_MAX_ATTEMPTS` / `RETRY_BASE_SECONDS` / `RETRY_CAP_SECONDS` | `5` / `1.0` / `60.0` | Backoff: `min(cap, base*2^attempt) + jitter`. |

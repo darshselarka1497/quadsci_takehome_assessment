@@ -23,7 +23,7 @@ from sqlalchemy import select
 
 from . import notifications
 from .config import Settings
-from .data import AT_RISK, AccountMonth, deduplicate, load_month_window
+from .data import AT_RISK, AccountMonth, load_and_deduplicate
 from .db import AlertOutcome, Run, get_session_factory
 from .duration import compute_duration
 from .schemas import (
@@ -45,14 +45,19 @@ ALERT_TYPE = "at_risk"
 def _load_and_dedup(
     req: RunRequest, settings: Settings
 ) -> Tuple[List[AccountMonth], int, int]:
-    """Return (deduped_records, rows_scanned, duplicate_rows)."""
+    """Return (deduped_records, rows_scanned, duplicate_rows).
+
+    Streams the month window as record batches and deduplicates incrementally, so
+    the full file is never materialized (see data.load_and_deduplicate).
+    """
     fs, path = open_uri(req.source_uri)
-    table, _window_start = load_month_window(
-        fs, path, req.month_date(), settings.history_lookback_months
+    return load_and_deduplicate(
+        fs,
+        path,
+        req.month_date(),
+        settings.history_lookback_months,
+        settings.scan_batch_size,
     )
-    rows_scanned = table.num_rows
-    records, duplicate_rows = deduplicate(table)
-    return records, rows_scanned, duplicate_rows
 
 
 def _candidates_and_history(

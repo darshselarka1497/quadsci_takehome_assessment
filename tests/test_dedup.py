@@ -3,7 +3,8 @@ from datetime import date, datetime
 
 import pyarrow as pa
 
-from app.data import deduplicate
+from app.data import deduplicate, load_and_deduplicate
+from app.storage import open_uri
 
 
 def _row(account_id, month, status, updated_at):
@@ -49,3 +50,17 @@ def test_empty_table():
     records, dup_count = deduplicate(table)
     assert records == []
     assert dup_count == 0
+
+
+def test_streaming_dedup_across_batch_boundaries(sample_parquet):
+    # batch_size=1 forces one row per record batch, so dedup must work *across*
+    # batches — proving the streaming path doesn't rely on a single materialized table.
+    fs, path = open_uri(sample_parquet)
+    records, rows_scanned, dup = load_and_deduplicate(
+        fs, path, date(2026, 1, 1), 24, batch_size=1
+    )
+    by_id = {r.account_id: r for r in records}
+    # a4 has two Jan rows; the later updated_at (Healthy) must win across batches.
+    assert by_id["a4"].status == "Healthy"
+    assert dup == 1
+    assert rows_scanned == 11  # total rows in the fixture window

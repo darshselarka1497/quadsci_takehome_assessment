@@ -26,7 +26,7 @@ Plain-text diagrams (monospace) — render in any Markdown/PDF viewer, no toolin
    LAYER         DOES                       TALKS TO
    ─────────     ──────────────────────     ────────────────────────────────────
    storage       open_uri()                 file:// · gs:// · s3:// (stub)
-   data          load + deduplicate         Parquet (predicate pushdown)
+   data          load + deduplicate         Parquet (predicate pushdown, streamed batches)
    duration      compute_duration           continuous At-Risk months (gap resets)
    slack         SlackClient.send_alert     Slack webhook (retry 429/5xx, Retry-After)
    db            SQLAlchemy models          SQLite: runs · alert_outcomes (UNIQUE key)
@@ -44,9 +44,10 @@ Synchronous: the request blocks until the whole run finishes.
   STEP 1   load the data
   ─────────────────────────────────────────────────────────────────────
     open_uri(source_uri)            → (filesystem, path)
-    load_month_window               → target month + lookback only
-                                      (predicate pushdown on `month`)
-    deduplicate (latest updated_at) → records  +  duplicate_count
+    load_and_deduplicate            → records + rows_scanned + duplicate_count
+                                      predicate pushdown on `month`, then
+                                      stream record batches & dedupe incrementally
+                                      (latest updated_at wins; window never fully held)
 
 
   STEP 2   for each At Risk account (arr ≥ ARR_THRESHOLD)

@@ -5,6 +5,9 @@ identifies **At Risk** accounts for a target month, computes how long each has b
 **continuously** at risk, routes Slack alerts by region, and is **safe to re-run**
 (no duplicate alerts). Exposed behind a small FastAPI interface.
 
+**Quick links:** [Run it locally](#quickstart-local) · [Example output](docs/example_output.md)
+(`/preview` + `/runs/{id}`) · [Architecture diagram](docs/architecture.md)
+
 ---
 
 ## Architecture

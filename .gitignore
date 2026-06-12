@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtualenv
+.venv/
+venv/
+
+# SQLite databases (runtime artifacts)
+*.db
+*.sqlite
+*.sqlite3
+
+# Mock Slack / runtime logs
+*.jsonl
+mock_slack_requests.jsonl
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Local secrets
+.env
+*service_account*.json
